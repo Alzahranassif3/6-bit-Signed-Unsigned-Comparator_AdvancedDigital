@@ -1,0 +1,227 @@
+//AL_zahra Nassif 1220168
+module unsignedComp (A,B,Equal,Greater,Smaller);
+	input [5:0] A,B;
+	output Equal,Greater,Smaller;
+	// Equality comparison A=B
+	wire [5:0] X;	
+	genvar i;
+	generate 
+	for (i=5;i>=0;i=i-1)begin : compare_bits
+		 xnor #10 (X[i],A[i],B[i]); 
+		 end
+	endgenerate
+	 
+	and #9(Equal,X[5],X[4],X[3],X[2],X[1],X[0]);
+	
+	wire [5:0] notB; 
+	wire [5:0] notA;
+	genvar ii;
+	generate 
+	for (ii=5;ii>=0;ii=ii-1)begin : invert_bitsBA
+		not #4 (notB[ii],B[ii]);
+		not #4 (notA[ii],A[ii]); 
+		 end
+	endgenerate
+	
+	// Greater comparison A > B
+	wire [5:0] Y;
+	
+	and #9 (Y[5],A[5],notB[5]);
+	and #9 (Y[4],X[5],A[4],notB[4]);
+	and #9 (Y[3],X[5],X[4],A[3],notB[3]);
+	and #9 (Y[2],X[5],X[4],X[3],A[2],notB[2]);  
+	and #9 (Y[1],X[5],X[4],X[3],X[2],A[1],notB[1]);
+	and #9 (Y[0],X[5],X[4],X[3],X[2],X[1],A[0],notB[0]);
+	or #9 (Greater,Y[5], Y[4],Y[3],Y[2],Y[1],Y[0]);
+	
+				 
+	// Smaller comparison A < B
+	wire [5:0] Z;
+	
+	
+	and #9 (Z[5],notA[5],B[5]);
+	and #9 (Z[4],X[5],notA[4],B[4]);
+	and #9(Z[3],X[5],X[4],notA[3],B[3]);
+	and #9 (Z[2],X[5],X[4],X[3],notA[2],B[2]);  
+	and #9 (Z[1],X[5],X[4],X[3],X[2],notA[1],B[1]);
+	and #9 (Z[0],X[5],X[4],X[3],X[2],X[1],notA[0],B[0]);
+	
+	or #9 (Smaller,Z[5],Z[4],Z[3],Z[2],Z[1],Z[0]);
+	
+endmodule 
+
+
+module signedComp (A, B, Equal, Greater, Smaller);
+    input [5:0] A, B;  
+    output Equal, Greater, Smaller;
+
+    // Equality comparison	A=B
+    wire [5:0] X;
+    genvar i;
+    generate
+        for (i = 5; i >= 0; i = i - 1) begin : compare_bits
+            xnor #10(X[i], A[i], B[i]);
+        end
+    endgenerate
+    and #9 (Equal,X[5],X[4],X[3],X[2],X[1],X[0]);  
+	
+	wire [5:0] notB; 
+	wire [5:0] notA;
+	genvar ii;
+	generate 
+	for (ii=5;ii>=0;ii=ii-1)begin : invert_bitsBA
+		not #4 (notB[ii],B[ii]);
+		not #4 (notA[ii],A[ii]); 
+		 end
+	endgenerate
+	
+    // Greater comparison A > B
+    wire [5:0] Y;
+    // First compare the sign bits (MSB)
+    and #9(Y[5], notA[5], B[5]);   // A positive, B negative
+    and #9(Y[4], X[5], A[4], notB[4]);
+    and #9(Y[3], X[5], X[4], A[3], notB[3]);
+    and #9(Y[2], X[5], X[4], X[3], A[2], notB[2]);
+    and #9(Y[1], X[5], X[4], X[3], X[2], A[1], notB[1]);
+    and #9(Y[0], X[5], X[4], X[3], X[2], X[1], A[0], notB[0]); 
+    or #9(Greater,Y[5], Y[4],Y[3],Y[2],Y[1],Y[0]);
+	//and  #9(Greater,Y[5], Y[4],Y[3],Y[2],Y[1],Y[0]);//intoduce an error 
+		
+    // Smaller comparison A < B
+    wire [5:0] Z;
+    
+    // First compare the sign bits (MSB)
+    and #9(Z[5], A[5], notB[5]);   // A negative, B positive
+    and #9(Z[4], X[5], notA[4], B[4]);
+    and #9(Z[3], X[5], X[4],  notA[3],B[3]);
+    and #9(Z[2], X[5], X[4], X[3], notA[2], B[2]);
+    and #9(Z[1], X[5], X[4], X[3], X[2], notA[1], B[1]);
+    and #9(Z[0], X[5], X[4], X[3], X[2], X[1], notA[0], B[0]);
+
+    or #9 (Smaller,Z[5],Z[4],Z[3],Z[2],Z[1],Z[0]); 
+
+endmodule
+
+
+
+module comparator (A, B, S, clk, Equal, Greater, Smaller); 
+    input [5:0] A, B;
+	reg [5:0] AD,BD; 
+	reg SD;
+    input S, clk;
+    output reg Equal, Greater, Smaller;
+    always @(posedge clk) begin
+		AD <= A;
+   		BD<= B;
+		SD<=S;
+	end 
+    wire ES, GS, SS;   // Outputs from signed comparison
+    wire EU, GU, SU;   // Outputs from unsigned comparison
+
+    signedComp sc (.A(AD), .B(BD), .Equal(ES), .Greater(GS), .Smaller(SS));
+    unsignedComp uc (.A(AD), .B(BD), .Equal(EU), .Greater(GU), .Smaller(SU));
+
+    always @(posedge clk) begin
+        if (SD == 1'b1) begin
+            Equal <= ES;
+            Greater <= GS;
+            Smaller <= SS;
+        end else begin
+            Equal <= EU;
+            Greater <= GU;
+            Smaller <= SU;
+        end
+end	
+endmodule  
+
+
+module Comp (AD,BD,SD,clk ,Equal, Greater, Smaller);	
+input  [5:0] AD,BD;
+reg  [5:0] A,B;
+reg S;
+input SD,clk;
+reg EC,GC,SC;
+output reg  Equal,Greater,Smaller;	
+ always @(posedge clk) begin
+		A <= AD;
+   		B<= BD;
+		S<=SD;
+	end 
+	 always @ (A or B or S) begin
+        // Reset output signals
+        EC = 0;
+        GC = 0;
+        SC = 0;
+        if (S == 1) begin// Signed comparison
+            if ($signed(A) == $signed(B)) EC = 1;
+            else if ($signed(A) > $signed(B))GC = 1; 
+            else if ($signed(A) < $signed(B))SC = 1;
+                
+        end
+        else begin // Unsigned comparison
+            if (A == B) EC = 1;
+            else if (A > B)GC = 1;
+            else SC = 1;
+        end         
+     end      
+   always @(posedge clk) begin      
+       		Equal <= EC;
+            	Greater <= GC;
+            Smaller <= SC;
+			end 
+endmodule	
+
+
+module tb_comparator;
+   
+    reg [5:0] A, B;
+    reg S, clk;
+
+    
+    wire Equal, Greater, Smaller;
+	wire ExpectedEqual, ExpectedGreater, ExpectedSmaller;
+	
+    
+    comparator Structural (.A(A), .B(B), .clk(clk), .S(S), .Equal(Equal), .Greater(Greater), .Smaller(Smaller));
+	Comp expectedComp (.AD(A), .BD(B), .SD(S), .clk(clk), .Equal(ExpectedEqual), .Greater(ExpectedGreater), .Smaller(ExpectedSmaller));
+
+	integer error_count=0;
+    initial begin
+        clk = 1'b1;
+        forever #14 clk = ~clk;  
+    end
+
+   
+    initial begin
+        // Display header for inputs table
+        $display("time     A           B        S  clk  Equal Greater  Smaller");
+        $display("-----------------------------------------------------------------------");
+    
+         $monitor("%0d    %b      %b      %b     %b   %b      %b      %b", $time, A, B, S, clk, Equal, Greater, Smaller);
+       
+
+        // Initialize inputs
+        A = 6'b000000;
+        B = 6'b000000;
+        S = 1'b1;
+			
+ 		repeat(63)begin
+			 #28 A= A +1;
+			 repeat(63)begin 
+				#28 B= B +1;
+				#28 S =~S;	  
+				if ((Equal != ExpectedEqual) || (Greater != ExpectedGreater) || (Smaller != ExpectedSmaller)) begin
+            	  	error_count = error_count + 1;
+                  end
+			 end
+			 end
+		  
+       	 if (error_count > 0) 
+            $display("\nFailed !-_-!,Total errors:%d\n",error_count);
+         else 
+            $display("\nAll tests passed !><!\n");
+        
+        $finish;
+    end
+
+endmodule
